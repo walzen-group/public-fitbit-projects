@@ -7,7 +7,7 @@ from influxdb import InfluxDBClient
 from influxdb.exceptions import InfluxDBClientError
 # for influxdb 2.x
 from influxdb_client import InfluxDBClient as InfluxDBClient2
-# from influxdb_client.client.exceptions import InfluxDBError # possible duplicate
+from influxdb_client.rest import ApiException as InfluxDB2ApiException
 from influxdb_client.client.write_api import SYNCHRONOUS
 # for influxdb 3.x
 from influxdb_client_3 import InfluxDBClient3, InfluxDBError
@@ -599,7 +599,8 @@ def write_points_to_influxdb(points):
         try:
             influxdb_write_api.write(bucket=INFLUXDB_BUCKET, org=INFLUXDB_ORG, record=points)
             logging.info("Successfully updated influxdb database with new points")
-        except InfluxDBError as err:
+        # The 2.x client raises ApiException on an HTTP error such as a 422 partial write.
+        except (InfluxDBError, InfluxDB2ApiException) as err:
             logging.error("Unable to connect with influxdb 2.x database! " + str(err))
             print("Influxdb connection failed! ", str(err))
     elif INFLUXDB_VERSION == "1":
@@ -1322,7 +1323,8 @@ def get_daily_data_limit_365d(start_date_str, end_date_str):
                 "measurement": "RestingHR",
                 "time": ts,
                 "tags": {"Device": DEVICENAME},
-                "fields": {"value": float(bpm)},
+                # Integer, as the Fitbit provider writes it; a float is a field type conflict.
+                "fields": {"value": int(round(bpm))},
             })
             inserted_count += 1
         if inserted_count:
